@@ -100,7 +100,8 @@ int main(int argc, char *argv[])
     solver.SetLoads(loads);
 
     std::cout << "Solve." << std::endl;
-    Eigen::VectorXf displacements = solver.Solve();
+    solver.CalculateInverseGlobalStiffnessMatrix();
+    Eigen::VectorXf displacements = solver.CalculateDisplacements();
 
     std::cout << "Writing to file." << std::endl;
     outfile << displacements << std::endl;

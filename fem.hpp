@@ -40,6 +40,7 @@ class FEMSolver {
   Eigen::Matrix3f D_;
 
   Eigen::SparseMatrix<float> K_;
+  Eigen::SparseMatrix<float> K_inv_;
 
   std::vector<Constraint> constraints_;
 
@@ -52,8 +53,9 @@ class FEMSolver {
   void CalculateElasticityMatrix();
   // Calculate global stiffness matrix
   void CalculateGlobalStiffnessMatrix();
+  void CalculateInverseGlobalStiffnessMatrix();
   void ApplyConstraints();
   void SetLoads(Eigen::VectorXf loads) { loads_ = loads; }
   void SetConstraints(std::vector<Constraint> constraints) { constraints_ = constraints; }
-  Eigen::VectorXf Solve();
+  Eigen::VectorXf CalculateDisplacements();
 };

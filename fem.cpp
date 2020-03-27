@@ -115,8 +115,14 @@ void FEMSolver::CalculateGlobalStiffnessMatrix() {
 	std::cout << K_ << std::endl;
 }
 
-Eigen::VectorXf FEMSolver::Solve() {
+void FEMSolver::CalculateInverseGlobalStiffnessMatrix() {
   Eigen::SimplicialLDLT<Eigen::SparseMatrix<float> > solver(K_);
-  Eigen::VectorXf displacements = solver.solve(loads_);
+  Eigen::SparseMatrix<float> I(2 * nodes_count_, 2 * nodes_count_);
+  I.setIdentity();
+  K_inv_ = solver.solve(I);
+}
+
+Eigen::VectorXf FEMSolver::CalculateDisplacements() {
+  Eigen::VectorXf displacements = K_inv_ * loads_;
   return displacements;
 }
