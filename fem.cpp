@@ -5,7 +5,98 @@
 
 #include <iostream>
 
-void Element::CalculateStiffnessMatrix(const Eigen::Matrix3f& D, const std::vector<float>& nodes_x,
+namespace FEM
+{
+
+DeformableMesh2D::DeformableMesh2D(std::vector<float> nodes_x, std::vector<float> nodes_y, std::vector<Element2D> elements, float poisson_ratio, float young_modulus) {
+	D_ <<
+		1.0f,           poisson_ratio, 0.0f,
+		poisson_ratio, 1.0f,           0.0f,
+		0.0f,           0.0f,           (1.0f - poisson_ratio) / 2.0f;
+
+	D_ *= young_modulus / (1.0f - poisson_ratio * poisson_ratio);
+
+	nodes_x_ = nodes_x;
+	nodes_y_ = nodes_y;
+
+	elements_ = elements;
+
+	nodes_count_ = nodes_x.size();
+
+	forces_.resize(2 * nodes_count_);
+	forces_.setZero();
+
+	Q_.resize(2 * nodes_count_, 2 * nodes_count_);
+}
+
+void DeformableMesh2D::setConstraint(Constraint constraint) {
+	constraints_.push_back(constraint);
+}
+
+void DeformableMesh2D::SetConstraints(Eigen::SparseMatrix<float>::InnerIterator& it, int index)
+{
+	if (it.row() == index || it.col() == index)
+	{
+		it.valueRef() = it.row() == it.col() ? 1.0f : 0.0f;
+	}
+};
+
+void DeformableMesh2D::calculateMatrix()
+{
+	std::vector<Eigen::Triplet<float> > triplets;
+	for (std::vector<Element2D>::iterator it = elements_.begin(); it != elements_.end(); ++it) {
+		it->CalculateStiffnessMatrix(D_, nodes_x_, nodes_y_, triplets);
+	}
+
+	Q_.setFromTriplets(triplets.begin(), triplets.end());
+
+	// TODO: Apply constraints.
+	std::vector<int> indicesToConstraint;
+
+	for (std::vector<Constraint>::const_iterator it = constraints_.begin(); it != constraints_.end(); ++it)
+	{
+		if (it->type & Constraint::UX)
+		{
+			indicesToConstraint.push_back(2 * it->node + 0);
+		}
+		if (it->type & Constraint::UY)
+		{
+			indicesToConstraint.push_back(2 * it->node + 1);
+		}
+	}
+
+	for (int k = 0; k < Q_.outerSize(); ++k)
+	{
+		for (Eigen::SparseMatrix<float>::InnerIterator it(Q_, k); it; ++it)
+		{
+			for (std::vector<int>::iterator idit = indicesToConstraint.begin(); idit != indicesToConstraint.end(); ++idit)
+			{
+				SetConstraints(it, *idit);
+			}
+		}
+	}
+
+	std::cout << "Global stiffness matrix:\n";
+	std::cout << Q_ << std::endl;
+
+	// Invert Q to get compliance matrix
+	Eigen::SimplicialLDLT<Eigen::SparseMatrix<float> > solver(Q_);
+	Eigen::SparseMatrix<float> I(2 * nodes_count_, 2 * nodes_count_);
+	I.setIdentity();
+	Q_ = solver.solve(I);
+}
+
+void DeformableMesh2D::setForce(int node, float x, float y) {
+	forces_[2 * node + 0] = x;
+	forces_[2 * node + 1] = y;
+};
+
+Eigen::VectorXf DeformableMesh2D::calculateDisplacements() {
+	Eigen::VectorXf displacements = Q_ * forces_;
+	return displacements;
+}
+
+void Element2D::CalculateStiffnessMatrix(const Eigen::Matrix3f& D, const std::vector<float>& nodes_x,
                                        const std::vector<float>& nodes_y, std::vector<Eigen::Triplet<float> >& triplets)
 {
 	Eigen::Vector3f x, y;
@@ -46,83 +137,4 @@ void Element::CalculateStiffnessMatrix(const Eigen::Matrix3f& D, const std::vect
 	}
 }
 
-FEMSolver::FEMSolver(std::vector<Element> elements, const std::vector<float>& nodes_x, const std::vector<float>& nodes_y, float poisson_ratio, float young_modulus) {
-  elements_ = elements;
-  nodes_x_ = nodes_x;
-  nodes_y_ = nodes_y;
-  nodes_count_ = nodes_x.size();
-  poisson_ratio_ = poisson_ratio;
-  young_modulus_ = young_modulus;
-  K_.resize(2 * nodes_count_, 2 * nodes_count_);
-}
-
-void FEMSolver::CalculateElasticityMatrix() {
-  D_ <<
-      1.0f,           poisson_ratio_, 0.0f,
-      poisson_ratio_, 1.0f,           0.0f,
-      0.0f,           0.0f,           (1.0f - poisson_ratio_) / 2.0f;
-
-  D_ *= young_modulus_ / (1.0f - poisson_ratio_ * poisson_ratio_);
-};
-
-void FEMSolver::ApplyConstraints()
-{
-	std::vector<int> indicesToConstraint;
-
-	for (std::vector<Constraint>::const_iterator it = constraints_.begin(); it != constraints_.end(); ++it)
-	{
-		if (it->type & Constraint::UX)
-		{
-			indicesToConstraint.push_back(2 * it->node + 0);
-		}
-		if (it->type & Constraint::UY)
-		{
-			indicesToConstraint.push_back(2 * it->node + 1);
-		}
-	}
-
-	for (int k = 0; k < K_.outerSize(); ++k)
-	{
-		for (Eigen::SparseMatrix<float>::InnerIterator it(K_, k); it; ++it)
-		{
-			for (std::vector<int>::iterator idit = indicesToConstraint.begin(); idit != indicesToConstraint.end(); ++idit)
-			{
-				SetConstraints(it, *idit);
-			}
-		}
-	}
-  std::cout << "Global stiffness matrix:\n";
-	std::cout << K_ << std::endl;
-}
-
-void FEMSolver::SetConstraints(Eigen::SparseMatrix<float>::InnerIterator& it, int index)
-{
-	if (it.row() == index || it.col() == index)
-	{
-		it.valueRef() = it.row() == it.col() ? 1.0f : 0.0f;
-	}
-};
-
-void FEMSolver::CalculateGlobalStiffnessMatrix() {
-  std::vector<Eigen::Triplet<float> > triplets;
-  for (std::vector<Element>::iterator it = elements_.begin(); it != elements_.end(); ++it) {
-    it->CalculateStiffnessMatrix(D_, nodes_x_, nodes_y_, triplets);
-  }
-
-  K_.setFromTriplets(triplets.begin(), triplets.end());
-
-  std::cout << "Global stiffness matrix:\n";
-	std::cout << K_ << std::endl;
-}
-
-void FEMSolver::CalculateInverseGlobalStiffnessMatrix() {
-  Eigen::SimplicialLDLT<Eigen::SparseMatrix<float> > solver(K_);
-  Eigen::SparseMatrix<float> I(2 * nodes_count_, 2 * nodes_count_);
-  I.setIdentity();
-  K_inv_ = solver.solve(I);
-}
-
-Eigen::VectorXf FEMSolver::CalculateDisplacements() {
-  Eigen::VectorXf displacements = K_inv_ * loads_;
-  return displacements;
 }

@@ -4,6 +4,8 @@
 
 #include "fem.hpp"
 
+using namespace FEM;
+
 int main(int argc, char *argv[])
 {
     if ( argc != 3 )
@@ -38,26 +40,25 @@ int main(int argc, char *argv[])
     std::cout << "Load elements." << std::endl;
 
     int element_count;
-    std::vector<Element> elements;
+    std::vector<Element2D> elements;
     infile >> element_count;
     elements.resize(element_count);
 
     for (int i = 0; i < element_count; ++i) {
-        Element element;
+        Element2D element;
         infile >> element.node_ids_[0] >> element.node_ids_[1] >> element.node_ids_[2];
         elements[i] = element;
     }
 
     std::cout << "Create solver object." << std::endl;
 
-    FEMSolver solver(elements, nodes_x, nodes_y, poisson_ratio, young_modulus);
+    DeformableMesh2D solver(nodes_x, nodes_y, elements, poisson_ratio, young_modulus);
 
     std::cout << "Load constraints." << std::endl;
 
     int constraint_count;
     std::vector<Constraint> constraints;
     infile >> constraint_count;
-    constraints.resize(constraint_count);
 
     for (int i = 0; i < constraint_count; ++i)
     {
@@ -65,8 +66,9 @@ int main(int argc, char *argv[])
         int type;
         infile >> constraint.node >> type;
         constraint.type = static_cast<Constraint::Type>(type);
-        constraints[i] = constraint;
+        solver.setConstraint(constraint);
     }
+    solver.calculateMatrix();
 
 
     std::cout << "Load loads." << std::endl;
@@ -74,34 +76,16 @@ int main(int argc, char *argv[])
     int load_count;
     Eigen::VectorXf loads;
     infile >> load_count;
-    loads.resize(2 * nodes_count);
-    loads.setZero();
 
     for (int i = 0; i < load_count; ++i) {
         int node;
         float x, y;
         infile >> node >> x >> y;
-        loads[2 * node + 0] = x;
-        loads[2 * node + 1] = y;
+        solver.setForce(node, x, y);
     }
 
-
-    std::cout << "Calculating elasticity matrix." << std::endl;
-    solver.CalculateElasticityMatrix();
-
-    std::cout << "Calculate stiffness matrix." << std::endl;
-    solver.CalculateGlobalStiffnessMatrix();
-
-    std::cout << "Setting constraints." << std::endl;
-    solver.SetConstraints(constraints);
-    solver.ApplyConstraints();
-
-    std::cout << "Set loads." << std::endl;
-    solver.SetLoads(loads);
-
     std::cout << "Solve." << std::endl;
-    solver.CalculateInverseGlobalStiffnessMatrix();
-    Eigen::VectorXf displacements = solver.CalculateDisplacements();
+    Eigen::VectorXf displacements = solver.calculateDisplacements();
 
     std::cout << "Writing to file." << std::endl;
     outfile << displacements << std::endl;

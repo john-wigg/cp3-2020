@@ -4,7 +4,10 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-class Element {
+namespace FEM
+{
+
+class Element2D {
  private:
   Eigen::Matrix<float, 3, 6> B_;
  public:
@@ -15,47 +18,41 @@ class Element {
 
 struct Constraint
 {
-	enum Type
-	{
-		UX = 1 << 0,
-		UY = 1 << 1,
-		UXY = UX | UY
-	};
-	int node;
-	Type type;
+  enum Type
+  {
+    NONE = 0,
+    UX = 1 << 0,
+    UY = 1 << 1,
+    UXY = UX | UY
+  };
+  Type type;
+  int node;
 };
 
-class FEMSolver {
+class DeformableMesh2D {
  private:
-  std::vector<Element> elements_;
+  int nodes_count_;
+
+  std::vector<Element2D> elements_;
   std::vector<float> nodes_x_;
   std::vector<float> nodes_y_;
 
-  Eigen::VectorXf loads_;
-
-  int nodes_count_;
-
-  float poisson_ratio_;
-  float young_modulus_;
-  Eigen::Matrix3f D_;
-
-  Eigen::SparseMatrix<float> K_;
-  Eigen::SparseMatrix<float> K_inv_;
-
+  Eigen::VectorXf forces_;
+  
   std::vector<Constraint> constraints_;
+
+  Eigen::Matrix3f D_; // Elasticity matrix.
+  Eigen::SparseMatrix<float> Q_; // Compliance matrix (inverse of stiffness matrix.)
 
   void SetConstraints(Eigen::SparseMatrix<float>::InnerIterator& it, int index);
  public:
-  // Constructor
-  FEMSolver(std::vector<Element> elements, const std::vector<float>& nodes_x, const std::vector<float>& nodes_y, float poisson_ratio, float yound_modulus);
-
-  // Calculates and sets the elasticity matrix D_
-  void CalculateElasticityMatrix();
-  // Calculate global stiffness matrix
-  void CalculateGlobalStiffnessMatrix();
-  void CalculateInverseGlobalStiffnessMatrix();
-  void ApplyConstraints();
-  void SetLoads(Eigen::VectorXf loads) { loads_ = loads; }
-  void SetConstraints(std::vector<Constraint> constraints) { constraints_ = constraints; }
-  Eigen::VectorXf CalculateDisplacements();
+  DeformableMesh2D(std::vector<float> nodes_x, std::vector<float> nodes_y, std::vector<Element2D> elements, float poisson_ratio, float young_modulus);
+  // Pre-processing.
+  void setConstraint(Constraint constraint);
+  void calculateMatrix();
+  // Getting displacements from forces.
+  void setForce(int node, float x, float y);
+  Eigen::VectorXf calculateDisplacements();
 };
+
+}
