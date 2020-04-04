@@ -32,6 +32,12 @@ namespace Triang
         Face *incident_face; // Face that the edge bounds
         HalfEdge *next;      // Next edge on boundary of incident_face
         HalfEdge *prev;      // Previous edge on boundary of incident_face
+        Vertex *helper;      // Used to store helper in MakeMonotone
+
+        // Comparator for set
+        bool operator<(const HalfEdge& rhs) const {
+            return origin->coordinates(0) < rhs.origin->coordinates(0);
+        }
     };
 
     // Doubly connected edge list

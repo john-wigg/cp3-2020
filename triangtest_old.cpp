@@ -15,7 +15,7 @@ void polygonToDCEL(DCEL &out, const std::vector<Eigen::Vector2f> &in) {
 
     for (int i = 0; i < N; ++i) {
         out.vertices[i].coordinates = in[i];
-        out.vertices[i].incident_edge = &(out.half_edges[i]);
+        out.vertices[i].incident_edge = &(out.half_edges[2*i]);
     }
 
     for (int i = 0; i < N; ++i) { // revered edges have +1 offset
@@ -48,19 +48,20 @@ void polygonToDCEL(DCEL &out, const std::vector<Eigen::Vector2f> &in) {
     // Set vertex types
     for (int i = 0; i < N; ++i) {
         float y = out.vertices[i].coordinates(1);
-        float x = out.vertices[i].coordinates(0);
-        float x1 = out.vertices[i].incident_edge->prev->origin->coordinates(0);
         float y1 = out.vertices[i].incident_edge->prev->origin->coordinates(1);
-        float x2 = out.vertices[i].incident_edge->twin->origin->coordinates(0);
         float y2 = out.vertices[i].incident_edge->twin->origin->coordinates(1);
-        // Vertex "above" inner face (we assume that the polygon is defined counter-clockwise)
-        if (x1 > x2) {
+        // We assume that the polygon is defined "counter-clockwise"
+        Eigen::Vector2f e1 = out.vertices[i].coordinates - out.vertices[i].incident_edge->prev->origin->coordinates;
+        Eigen::Vector2f e2 = out.vertices[i].incident_edge->twin->origin->coordinates - out.vertices[i].coordinates;
+        Eigen::Vector2f e1_ortho(-e1(1), e1(0));
+        float dot = e1_ortho.dot(e2);
+        if (dot > 0) { // Interior angle < pi
             if (y1 < y && y2 < y) out.vertices[i].type = VertexType::START;
-            else if (y1 > y && y2 > y) out.vertices[i].type = VertexType::MERGE;
-            else out.vertices[i].type = VertexType::REGULAR;
-        } else { // Vertex "below" inner face
-            if (y1 < y && y2 < y) out.vertices[i].type = VertexType::SPLIT;
             else if (y1 > y && y2 > y) out.vertices[i].type = VertexType::END;
+            else out.vertices[i].type = VertexType::REGULAR;
+        } else { // Interior angle > pi
+            if (y1 < y && y2 < y) out.vertices[i].type = VertexType::SPLIT;
+            else if (y1 > y && y2 > y) out.vertices[i].type = VertexType::MERGE;
             else out.vertices[i].type = VertexType::REGULAR;
         }
     }
@@ -93,10 +94,15 @@ void summary(const DCEL &P) {
 int main() {
     DCEL P;
     std::vector<Eigen::Vector2f> poly;
-    poly.resize(3);
+    poly.resize(8);
     poly[0] = Eigen::Vector2f(0.0f, 0.0f);
-    poly[1] = Eigen::Vector2f(-1.0f, 0.5f);
-    poly[2] = Eigen::Vector2f(-2.0f, -0.5f);
+    poly[1] = Eigen::Vector2f(-0.5f, -1.0f);
+    poly[2] = Eigen::Vector2f(-1.5f, 0.0f);
+    poly[3] = Eigen::Vector2f(-1.5f, -2.5f);
+    poly[4] = Eigen::Vector2f(-0.5f, -2.0f);
+    poly[5] = Eigen::Vector2f(0.0f, -3.0f);
+    poly[6] = Eigen::Vector2f(1.0f, -2.0f);
+    poly[7] = Eigen::Vector2f(1.0f, -1.0f);
     polygonToDCEL(P, poly);
     summary(P);
     MakeMonotone(P);
