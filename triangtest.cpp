@@ -17,8 +17,20 @@ int main() {
     poly[6].coordinates = Eigen::Vector2f(1.0f, -2.0f);
     poly[7].coordinates = Eigen::Vector2f(1.0f, -1.0f);
 
+    std::vector<Edge> segments;
+    segments.push_back(Edge(0, 1));
+    segments.push_back(Edge(1, 2));
+    segments.push_back(Edge(2, 3));
+    segments.push_back(Edge(3, 4));
+    segments.push_back(Edge(4, 5));
+    segments.push_back(Edge(5, 6));
+    segments.push_back(Edge(6, 7));
+    segments.push_back(Edge(7, 0));
+
     Delaunay2D delaunay;
     delaunay.vertices = poly;
-    delaunay.DelaunayTriangulation();
+    delaunay.segments = segments;
+    //delaunay.DelaunayTriangulation();
+    delaunay.RefineRupperts(20.0f);
     delaunay.ToFile("delaunay.out");
 }

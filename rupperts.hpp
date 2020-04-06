@@ -10,6 +10,7 @@ namespace Rupperts {
         Vertex() { };
         Vertex(Eigen::Vector2f init_coordinates) { coordinates = init_coordinates; }
         Eigen::Vector2f coordinates; // x and y coordinates of the Vertex
+        bool is_helper = false;
         //Segment &incident_segment; // Could be useful later?
     };
 
@@ -21,16 +22,6 @@ namespace Rupperts {
         }
         int orig;
         int dest;
-    };
-
-    struct Segment {
-        Segment() { };
-        Segment(Vertex &init_orig, Vertex &init_dest) {
-            orig = &init_orig;
-            dest = &init_dest;
-        }
-        Vertex *orig;
-        Vertex *dest;
     };
 
     struct Circle {
@@ -54,23 +45,20 @@ namespace Rupperts {
 
     class Delaunay2D {
     private:
+        void SplitSeg(int s);
+        void SplitTri(Triangle &t, Vertex p);
+        int GetFirstEncroached();
+        bool IsTriangleLowQuality(const Triangle &t, float alpha);
         Circle CalculateCircle(const Triangle &t);
         bool inCircle(const Circle &c, const Vertex &v);
+        void DelaunayAddPoint(int i);
     public:
         ~Delaunay2D();
         std::vector<Vertex> vertices;
         std::vector<std::reference_wrapper<Triangle>> triangles;
+        std::vector<Edge> segments;
         void DelaunayTriangulation();
         void ToFile(std::string oname);
+        void RefineRupperts(float alpha);
     };
-
-    /*
-    struct PSLG {
-        std::vector<Vertex> vertices;
-        std::vector<Segment> segments;
-    };
-    */
-
-    std::vector<Triangle> DelauneyTriangulation(std::vector<Vertex> &P);
-    //void RuppertsAlgorithm(PSLG X, float alpha);
 }
