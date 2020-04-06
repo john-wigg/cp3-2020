@@ -46,8 +46,8 @@ for i in range(len(triangles)):
 lc = LineCollection(segs, linewidths=1, linestyle="solid")
 ax.add_collection(lc)
 
-ax.set_xlim(-3.5, 3.5)
-ax.set_ylim(-3.5, 3.5)
+ax.set_xlim(-10, 10)
+ax.set_ylim(-10, 10)
 ax.set_aspect('equal')
 
 for vertex in vertices:

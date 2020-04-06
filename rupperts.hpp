@@ -47,7 +47,7 @@ namespace Rupperts {
     /* Stores vertices, connected triangles and circle of a single triangle */
     struct Triangle {
         std::array<int, 3> v{-1, -1, -1};
-        std::array<int, 3> t{-1, -1, -1};
+        std::array<Triangle *, 3> t{nullptr, nullptr, nullptr};
         Circle c;
         bool is_bad = false;
     };
@@ -57,8 +57,9 @@ namespace Rupperts {
         Circle CalculateCircle(const Triangle &t);
         bool inCircle(const Circle &c, const Vertex &v);
     public:
+        ~Delaunay2D();
         std::vector<Vertex> vertices;
-        std::vector<Triangle> triangles;
+        std::vector<std::reference_wrapper<Triangle>> triangles;
         void DelaunayTriangulation();
         void ToFile(std::string oname);
     };

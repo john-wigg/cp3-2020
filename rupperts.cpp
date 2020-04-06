@@ -66,15 +66,12 @@ namespace Rupperts {
         int N = vertices.size();
 
         // Add super-triangle to the triangulation
-        Triangle t;
-        t.v = { N - 3, N - 2, N - 1 };
-        t.c = CalculateCircle(t);
-        triangles.push_back(t);
+        Triangle *t = new Triangle();
+        t->v = { N - 3, N - 2, N - 1 };
+        t->c = CalculateCircle(*t);
+        triangles.push_back(*t);
 
-        std::cout << "* ADDED super triangle with edges (" << v1.coordinates.x() << ", " << v1.coordinates.y() << "), ("
-                                                           << v2.coordinates.x() << ", " << v2.coordinates.y() << "), ("
-                                                           << v3.coordinates.x() << ", " << v3.coordinates.y() << ")"
-        << std::endl;
+        std::cout << "* ADDED super triangle with edges (" << t->v[0] << ", " << t->v[1] << ", " << t->v[2] << ")" << std::endl;
 
         std::cout << "Start adding points..." << std::endl;
 
@@ -91,9 +88,9 @@ namespace Rupperts {
             // First find alle the triangles that are no longer valid due to the insrtion
             for (int k = 0; k < triangles.size(); ++k) {
                 // Add triangles that are no longer valid to bad triangles
-                if (inCircle(triangles[k].c, vertices[i])) {
-                    std::cout << "* MARKING bad triangle: " << k << " (" << triangles[k].v[0] << ", " << triangles[k].v[1] << ", " << triangles[k].v[2] << ")" << std::endl;
-                    triangles[k].is_bad = true;
+                if (inCircle(triangles[k].get().c, vertices[i])) {
+                    std::cout << "* MARKING bad triangle: " << k << " (" << triangles[k].get().v[0] << ", " << triangles[k].get().v[1] << ", " << triangles[k].get().v[2] << ")" << std::endl;
+                    triangles[k].get().is_bad = true;
                     last_bad_index = k;
                     num_bad_triangles++;
                 }
@@ -102,21 +99,21 @@ namespace Rupperts {
             std::cout << "Get boundary edge loop of bad triangles..." << std::endl;
             // Get boundary edge loop of bad triangles
             std::vector<Edge> boundary;
-            std::vector<int> boundary_triangles;
+            std::vector<Triangle *> boundary_triangles;
 
             // start with first triangle in bad triangles
-            int T = last_bad_index;
+            Triangle *T = &triangles[last_bad_index].get();
             int edge = 0;
             //while (i == 5){};
             while (true) {
-                int tri_op = triangles[T].t[edge];
+                Triangle *tri_op = T->t[edge];
                 std::cout << "-------" << std::endl;
-                std::cout << "* Triangle " << T << " has vertices " << triangles[T].v[0] << ", "  << triangles[T].v[1] << ", " << triangles[T].v[2] << std::endl;
+                std::cout << "* Triangle " << T << " has vertices " << T->v[0] << ", "  << T->v[1] << ", " << T->v[2] << std::endl;
                 std::cout << "On Edge " << edge << "with opposite triangle " << tri_op << std::endl;
-                if (tri_op == -1 || !triangles[tri_op].is_bad) {
+                if (tri_op == nullptr || !tri_op->is_bad) {
                     // bad_triangles contains tri_op
                     std::cout << "* ADDING edge to boundary..." << std::endl;
-                    boundary.push_back(Edge(triangles[T].v[(3 + (edge+1) % 3) % 3], triangles[T].v[(3 + (edge-1) % 3) % 3]));
+                    boundary.push_back(Edge(T->v[(3 + (edge+1) % 3) % 3], T->v[(3 + (edge-1) % 3) % 3]));
                     std::cout << "b: " << boundary.back().orig << " --> " << boundary.back().dest << std::endl;
                     boundary_triangles.push_back(tri_op);
                     edge = (edge + 1) % 3;
@@ -131,7 +128,7 @@ namespace Rupperts {
                     // Move to next CCW edge in opposite triangle
                     int index;
                     for (int m = 0; m < 3; ++m) { // Find edge that borders to original triangle
-                        if (triangles[tri_op].t[m] == T) {
+                        if (tri_op->t[m] == T) {
                             index = m;
                         }
                     }
@@ -141,25 +138,26 @@ namespace Rupperts {
             }
 
             std::cout << "Remove bad triangles..." << std::endl;
-            std::vector<Triangle> old_triangles = triangles;
             // Remove bad triangles
             // TODO: This has n^2 complexity
-            int removed_triangles = 0;
             for (int k = 0; k < triangles.size(); ++k) {
-                if (triangles[k].is_bad) {
-                    std::cout << "* REMOVING bad triangle: " << k << " (" << triangles[k].v[0] << ", " << triangles[k].v[1] << ", " << triangles[k].v[2] << ")" << std::endl;
+                if (triangles[k].get().is_bad) {
+                    std::cout << "* REMOVING bad triangle: " << k << " (" << triangles[k].get().v[0] << ", " << triangles[k].get().v[1] << ", " << triangles[k].get().v[2] << ")" << std::endl;
+                    delete &(triangles[k].get());
                     triangles.erase(triangles.begin() + k);
                     --k;
-                    ++removed_triangles;
+                    /*
                     for (int m = 0; m < triangles.size(); ++m) { // Update triangle refs of 
-                        if (triangles[m].t[0] > k && triangles[m].t[0] != -1) --triangles[m].t[0];
-                        if (triangles[m].t[1] > k && triangles[m].t[1] != -1) --triangles[m].t[1];
-                        if (triangles[m].t[2] > k && triangles[m].t[2] != -1) --triangles[m].t[2];
+                        if (triangles[m].get().t[0] > k && triangles[m].get().t[0] != -1) --triangles[m].get().t[0];
+                        if (triangles[m].get().t[1] > k && triangles[m].get().t[1] != -1) --triangles[m].get().t[1];
+                        if (triangles[m].get().t[2] > k && triangles[m].get().t[2] != -1) --triangles[m].get().t[2];
                     }
+                    
 
                     for (int m = 0; m < boundary_triangles.size(); ++m) {
                         if (boundary_triangles[m] > k && boundary_triangles[m] != -1) --boundary_triangles[m];
                     }
+                    */
                 }
             }
 
@@ -176,22 +174,22 @@ namespace Rupperts {
 
             std::cout << "Remaining triangles:" << std::endl;
             for (int k = 0; k < triangles.size(); ++k) {
-                std::cout << triangles[k].v[0] << ", " << triangles[k].v[1] << ", " << triangles[k].v[2] << std::endl;
+                std::cout << triangles[k].get().v[0] << ", " << triangles[k].get().v[1] << ", " << triangles[k].get().v[2] << std::endl;
             }
 
             std::cout << "Retriangulate hole..." << std::endl;
             // Re-triangulate the hole
-            std::vector<Triangle> new_triangles;
+            std::vector<std::reference_wrapper<Triangle>> new_triangles;
             for (int k = 0; k < boundary.size(); ++k) {
-                Triangle new_T;
-                new_T.v = { i, boundary[k].orig, boundary[k].dest };
-                new_T.c = CalculateCircle(new_T);
-                new_T.t[0] = boundary_triangles[k];
+                Triangle *new_T = new Triangle();
+                new_T->v = { i, boundary[k].orig, boundary[k].dest };
+                new_T->c = CalculateCircle(*new_T);
+                new_T->t[0] = boundary_triangles[k];
 
                 // Link boundary triangle (if existing) to this triangle
-                if (boundary_triangles[k] != -1) {
+                if (boundary_triangles[k] != nullptr) {
                     std::cout << "Reconnecting boundary triangle " << boundary_triangles[k] << std::endl;
-                    std::cout << "Currently " << triangles[boundary_triangles[k]].t[0] << ", " << triangles[boundary_triangles[k]].t[1] << ", " << triangles[boundary_triangles[k]].t[2] << std::endl;
+                    std::cout << "Currently " << boundary_triangles[k]->t[0] << ", " << boundary_triangles[k]->t[1] << ", " << boundary_triangles[k]->t[2] << std::endl;
                     for (int m = 0; m < 3; ++m) {
                         /*
                         int neigh = triangles[boundary_triangles[k]].t[m];
@@ -214,57 +212,43 @@ namespace Rupperts {
                             }
                         }
                         */
-                        if (triangles[boundary_triangles[k]].v[m] == boundary[k].orig) {
-                            triangles[boundary_triangles[k]].t[positive_modulo(m-2, 3)] = triangles.size() + k;
+                        if (boundary_triangles[k]->v[m] == boundary[k].orig) {
+                            boundary_triangles[k]->t[positive_modulo(m-2, 3)] = new_T;
                             std::cout << "* CONNECTING triangle " << triangles.size() + k  << " to " << " boundary triangle " << boundary_triangles[k] << std::endl;
                         }
                     }
                 }
-                new_triangles.push_back(new_T);
+                new_triangles.push_back(*new_T);
             }
 
             // Link new triangles to each other and add to list
             for (int k = 0; k < new_triangles.size(); ++k) {
-                new_triangles[k].t[1] = triangles.size() - k + positive_modulo((k + 1), new_triangles.size());
-                new_triangles[k].t[2] = triangles.size() - k + positive_modulo((k - 1), new_triangles.size());
+                new_triangles[k].get().t[1] = &new_triangles[positive_modulo((k + 1), new_triangles.size())].get();
+                new_triangles[k].get().t[2] = &new_triangles[positive_modulo((k - 1), new_triangles.size())].get();
                 triangles.push_back(new_triangles[k]);
             }
 
             std::cout << "Final triangles:" << std::endl;
             for (int k = 0; k < triangles.size(); ++k) {
-                std::cout << triangles[k].v[0] << ", " << triangles[k].v[1] << ", " << triangles[k].v[2] << std::endl;
+                std::cout << triangles[k].get().v[0] << ", " << triangles[k].get().v[1] << ", " << triangles[k].get().v[2] << std::endl;
             }
         }
 
+        
         // TODO: Cleanup of the super-triangle
-        std::cout << "N " << N << std::endl;
-        std::cout << "T " << triangles.size() << std::endl;
         for (int i = 0; i < triangles.size(); ++i) {
-            std::cout << i << " : " << triangles[i].v[0] << ", " << triangles[i].v[1] << ", " << triangles[i].v[2];
             for (int k = 0; k < 3; ++k) {
-                if (triangles[i].v[k] >= (N - 3)) {
+                if (triangles[i].get().v[k] >= (N - 3)) {
                     triangles.erase(triangles.begin() + i);
                     --i;
-                    std::cout << " *";
-                    for (int m = 0; m < triangles.size(); ++m) { // Update triangle refs of 
-                        if (triangles[m].t[0] > i && triangles[m].t[0] != -1) --triangles[m].t[0];
-                        if (triangles[m].t[1] > i && triangles[m].t[1] != -1) --triangles[m].t[1];
-                        if (triangles[m].t[2] > i && triangles[m].t[2] != -1) --triangles[m].t[2];
-                    }
                     break;
                 }
             }
-            std::cout << std::endl;
         }
 
         vertices.pop_back();
         vertices.pop_back();
         vertices.pop_back();
-
-        std::cout << "Final triangles:" << std::endl;
-        for (int k = 0; k < triangles.size(); ++k) {
-            std::cout << triangles[k].v[0] << ", " << triangles[k].v[1] << ", " << triangles[k].v[2] << std::endl;
-        }
     }
 
     void Delaunay2D::ToFile(std::string oname) {
@@ -276,10 +260,11 @@ namespace Rupperts {
         outfile << std::endl;
 
         for (int i = 0; i < triangles.size(); ++i) {
-            outfile << triangles[i].v[0] << " " << triangles[i].v[1] << " " << triangles[i].v[2] << std::endl;
+            outfile << triangles[i].get().v[0] << " " << triangles[i].get().v[1] << " " << triangles[i].get().v[2] << std::endl;
         }
-
         outfile << std::endl;
+
+        /*
 
         for (int i = 0; i < triangles.size(); ++i) {
             outfile << triangles[i].t[0] << " " << triangles[i].t[1] << " " << triangles[i].t[2] << std::endl;
@@ -295,6 +280,13 @@ namespace Rupperts {
 
         for (int i = 0; i < triangles.size(); ++i) {
             outfile << triangles[i].t[0] << " " << triangles[i].t[1] << " " << triangles[i].t[2] << std::endl;
+        }
+        */
+    }
+
+    Delaunay2D::~Delaunay2D() {
+        for (int i = 0; i < triangles.size(); ++i) {
+            delete &triangles[i].get();
         }
     }
 
