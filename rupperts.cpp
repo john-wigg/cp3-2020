@@ -12,9 +12,9 @@ namespace Rupperts {
 
     // https://www.ics.uci.edu/~eppstein/junkyard/circumcenter.html
     Circle Delaunay2D::CalculateCircle(const Triangle &t) {
-        Eigen::Vector2f a = vertices[t.v[0]].coordinates;
-        Eigen::Vector2f b = vertices[t.v[1]].coordinates;
-        Eigen::Vector2f c = vertices[t.v[2]].coordinates;
+        Eigen::Vector2f a = t.v[0]->coordinates;
+        Eigen::Vector2f b = t.v[1]->coordinates;
+        Eigen::Vector2f c = t.v[2]->coordinates;
         float ba2 = (b - a).squaredNorm();
         float ca2 = (c - a).squaredNorm();
         float bc2 = (b - c).squaredNorm();
@@ -54,7 +54,7 @@ namespace Rupperts {
         // First find alle the triangles that are no longer valid due to the insrtion
         for (int k = 0; k < triangles.size(); ++k) {
             // Add triangles that are no longer valid to bad triangles
-            if (inCircle(triangles[k]->c, vertices[i])) {
+            if (inCircle(triangles[k]->c, *vertices[i])) {
                 triangles[k]->is_bad = true;
                 last_bad_index = k;
                 num_bad_triangles++;
@@ -73,7 +73,7 @@ namespace Rupperts {
             Triangle *tri_op = T->t[edge];
             if (tri_op == nullptr || !tri_op->is_bad) {
                 // bad_triangles contains tri_op
-                boundary.push_back(Edge(T->v[(3 + (edge+1) % 3) % 3], T->v[(3 + (edge-1) % 3) % 3]));
+                boundary.push_back(Edge(*T->v[(3 + (edge+1) % 3) % 3], *T->v[(3 + (edge-1) % 3) % 3]));
                 boundary_triangles.push_back(tri_op);
                 edge = (edge + 1) % 3;
 
@@ -106,7 +106,7 @@ namespace Rupperts {
         std::vector<Triangle *> new_triangles;
         for (int k = 0; k < boundary.size(); ++k) {
             Triangle *new_T = new Triangle();
-            new_T->v = { i, boundary[k].orig, boundary[k].dest };
+            new_T->v = { vertices[i], boundary[k].orig, boundary[k].dest };
             new_T->c = CalculateCircle(*new_T);
             new_T->t[0] = boundary_triangles[k];
 
@@ -131,20 +131,20 @@ namespace Rupperts {
 
     void Delaunay2D::DelaunayTriangulation() {
         // Add super-triangle
-        float xmax = std::max_element(vertices.begin(), vertices.end(), [](const Vertex& a, const Vertex& b){ return a.coordinates(0) < b.coordinates(0); })->coordinates(0);
-        float xmin = std::min_element(vertices.begin(), vertices.end(), [](const Vertex& a, const Vertex& b){ return a.coordinates(0) < b.coordinates(0); })->coordinates(0);
-        float ymax = std::max_element(vertices.begin(), vertices.end(), [](const Vertex& a, const Vertex& b){ return a.coordinates(0) < b.coordinates(0); })->coordinates(1);
-        float ymin = std::min_element(vertices.begin(), vertices.end(), [](const Vertex& a, const Vertex& b){ return a.coordinates(0) < b.coordinates(0); })->coordinates(1);
+        float xmax = (*std::max_element(vertices.begin(), vertices.end(), [](const Vertex *a, const Vertex *b){ return a->coordinates(0) < b->coordinates(0); }))->coordinates(0);
+        float xmin = (*std::min_element(vertices.begin(), vertices.end(), [](const Vertex *a, const Vertex *b){ return a->coordinates(0) < b->coordinates(0); }))->coordinates(0);
+        float ymax = (*std::max_element(vertices.begin(), vertices.end(), [](const Vertex *a, const Vertex *b){ return a->coordinates(0) < b->coordinates(0); }))->coordinates(1);
+        float ymin = (*std::min_element(vertices.begin(), vertices.end(), [](const Vertex *a, const Vertex *b){ return a->coordinates(0) < b->coordinates(0); }))->coordinates(1);
         float span = fmax(xmax-xmin, ymax-ymin);
         Eigen::Vector2f center((xmin+xmax)/2.0f, (ymin+ymax)/2.0f);
         
         // Add points CCW
-        Vertex v1(Vertex(center + Eigen::Vector2f(0.0f, 3.0f * span)));
-        Vertex v2(Vertex(center + Eigen::Vector2f(-3.0f * span, -3.0f * span)));
-        Vertex v3(Vertex(center + Eigen::Vector2f(3.0f * span, -3.0f * span)));
-        v1.is_helper = true;
-        v2.is_helper = true;
-        v3.is_helper = true;
+        Vertex *v1 = new Vertex(center + Eigen::Vector2f(0.0f, 3.0f * span));
+        Vertex *v2 = new Vertex(center + Eigen::Vector2f(-3.0f * span, -3.0f * span));
+        Vertex *v3 = new Vertex(center + Eigen::Vector2f(3.0f * span, -3.0f * span));
+        v1->is_helper = true;
+        v2->is_helper = true;
+        v3->is_helper = true;
 
         vertices.push_back(v1);
         vertices.push_back(v2);
@@ -154,7 +154,7 @@ namespace Rupperts {
 
         // Add super-triangle to the triangulation
         Triangle *t = new Triangle();
-        t->v = { N - 3, N - 2, N - 1 };
+        t->v = { v1, v2, v3 };
         t->c = CalculateCircle(*t);
         triangles.push_back(t);
 
@@ -183,18 +183,21 @@ namespace Rupperts {
     void Delaunay2D::ToFile(std::string oname) {
         std::ofstream outfile(oname);
         for (int i = 0; i < vertices.size(); ++i) {
-            outfile << vertices[i].coordinates(0) << " " << vertices[i].coordinates(1) << std::endl;
+            outfile << vertices[i]->coordinates(0) << " " << vertices[i]->coordinates(1) << std::endl;
         }
 
         outfile << std::endl;
 
         for (int i = 0; i < triangles.size(); ++i) {
-            outfile << triangles[i]->v[0] << " " << triangles[i]->v[1] << " " << triangles[i]->v[2] << std::endl;
+            outfile << std::distance(vertices.begin(), std::find(vertices.begin(), vertices.end(), triangles[i]->v[0])) << " "
+                    << std::distance(vertices.begin(), std::find(vertices.begin(), vertices.end(), triangles[i]->v[1])) << " "
+                    << std::distance(vertices.begin(), std::find(vertices.begin(), vertices.end(), triangles[i]->v[2])) << std::endl;
         }
         outfile << std::endl;
 
         for (int i = 0; i < segments.size(); ++i) {
-            outfile << segments[i].orig << " " << segments[i].dest << std::endl;
+            outfile << std::distance(vertices.begin(), std::find(vertices.begin(), vertices.end(), segments[i].orig)) << " "
+                    << std::distance(vertices.begin(), std::find(vertices.begin(), vertices.end(), segments[i].dest)) << std::endl;
         }
         outfile << std::endl;
     }
@@ -205,29 +208,31 @@ namespace Rupperts {
         }
     }
 
-    void Delaunay2D::SplitTri(Triangle &t, Vertex p) {
-        vertices.push_back(p);
+    void Delaunay2D::SplitTri(Triangle &t, Vertex &p) {
+        vertices.push_back(&p);
         DelaunayAddPoint(vertices.size() - 1);
     }
 
     void Delaunay2D::SplitSeg(int s_idx) {
         Edge s = segments[s_idx];
-        Eigen::Vector2f m = ( vertices[s.orig].coordinates + vertices[s.dest].coordinates ) / 2.0f; // midpoint
-        vertices.push_back(Vertex(m));
+        Eigen::Vector2f m = ( s.orig->coordinates + s.dest->coordinates ) / 2.0f; // midpoint
+        vertices.push_back(new Vertex(m));
         DelaunayAddPoint(vertices.size() - 1);
 
         segments.erase(segments.begin() + s_idx);
-        segments.push_back(Edge(s.orig, vertices.size() - 1));
-        segments.push_back(Edge(vertices.size() - 1, s.dest));
+        segments.push_back(Edge(*s.orig, *vertices.back()));
+        if (s.is_helper) segments.back().is_helper = true;
+        segments.push_back(Edge(*vertices.back(), *s.dest));
+        if (s.is_helper) segments.back().is_helper = true;
     }
 
     int Delaunay2D::GetFirstEncroached() {
         for (int i = 0; i < segments.size(); ++i) {
             Circle c;
-            c.center = ( vertices[segments[i].orig].coordinates + vertices[segments[i].dest].coordinates ) / 2.0f;
-            c.radius = ( vertices[segments[i].orig].coordinates - vertices[segments[i].dest].coordinates ).norm() / 2.0f;
+            c.center = ( segments[i].orig->coordinates + segments[i].dest->coordinates ) / 2.0f;
+            c.radius = ( segments[i].orig->coordinates - segments[i].dest->coordinates ).norm() / 2.0f;
             for (int k = 0; k < vertices.size(); ++k) {
-                if (inCircle(c, vertices[k]) && k != segments[i].orig && k != segments[i].dest) {
+                if (inCircle(c, *vertices[k]) && vertices[k] != segments[i].orig && vertices[k] != segments[i].dest) {
                     return i;
                 }
             }
@@ -246,12 +251,12 @@ namespace Rupperts {
     }
 
     bool Delaunay2D::IsTriangleLowQuality(const Triangle &t, float alpha) {
-        if (vertices[t.v[1]].is_helper) return false;
-        if (vertices[t.v[0]].is_helper) return false;
-        if (vertices[t.v[2]].is_helper) return false;
+        if (t.v[1]->is_helper) return false;
+        if (t.v[0]->is_helper) return false;
+        if (t.v[2]->is_helper) return false;
         for (int k = 0; k < 3; ++k) {
-            Eigen::Vector2f a = vertices[t.v[(k+1)%3]].coordinates - vertices[t.v[k]].coordinates;
-            Eigen::Vector2f b = vertices[t.v[(k+1)%3]].coordinates - vertices[t.v[(k+2)%3]].coordinates;
+            Eigen::Vector2f a = t.v[(k+1)%3]->coordinates - t.v[k]->coordinates;
+            Eigen::Vector2f b = t.v[(k+1)%3]->coordinates - t.v[(k+2)%3]->coordinates;
             float dot = a.x() * b.x() + a.y() + b.y();
             float det = a.x() * b.y() - a.y() * b.x();
             float angle = fabs(atan2(det, dot)) * 180.0 / 3.1415926535;
@@ -263,27 +268,31 @@ namespace Rupperts {
     }
 
     void Delaunay2D::RefineRupperts(float alpha) {
-        float xmax = std::max_element(vertices.begin(), vertices.end(), [](const Vertex&a, const Vertex& b){ return a.coordinates(0) < b.coordinates(0); })->coordinates(0);
-        float xmin = std::min_element(vertices.begin(), vertices.end(), [](const Vertex&a, const Vertex& b){ return a.coordinates(0) < b.coordinates(0); })->coordinates(0);
-        float ymax = std::max_element(vertices.begin(), vertices.end(), [](const Vertex&a, const Vertex& b){ return a.coordinates(1) < b.coordinates(1); })->coordinates(1);
-        float ymin = std::min_element(vertices.begin(), vertices.end(), [](const Vertex&a, const Vertex& b){ return a.coordinates(1) < b.coordinates(1); })->coordinates(1);
+        float xmax = (*std::max_element(vertices.begin(), vertices.end(), [](const Vertex *a, const Vertex *b){ return a->coordinates(0) < b->coordinates(0); }))->coordinates(0);
+        float xmin = (*std::min_element(vertices.begin(), vertices.end(), [](const Vertex *a, const Vertex *b){ return a->coordinates(0) < b->coordinates(0); }))->coordinates(0);
+        float ymax = (*std::max_element(vertices.begin(), vertices.end(), [](const Vertex *a, const Vertex *b){ return a->coordinates(1) < b->coordinates(1); }))->coordinates(1);
+        float ymin = (*std::min_element(vertices.begin(), vertices.end(), [](const Vertex *a, const Vertex *b){ return a->coordinates(1) < b->coordinates(1); }))->coordinates(1);
         float span = fmax(xmax-xmin, ymax-ymin);
         Eigen::Vector2f center((xmin+xmax)/2.0f, (ymin+ymax)/2.0f);
         // * Let B be the square of side 3 * span(X) centered on X
         // * Add the four boundary segments of B to X
-        Vertex v1(Vertex(center + Eigen::Vector2f(1.5f * span, 1.5f * span)));
-        Vertex v2(Vertex(center + Eigen::Vector2f(-1.5f * span, 1.5f * span)));
-        Vertex v3(Vertex(center + Eigen::Vector2f(-1.5f * span, -1.5f * span)));
-        Vertex v4(Vertex(center + Eigen::Vector2f(1.5f * span, -1.5f * span)));
+        Vertex *v1 = new Vertex(center + Eigen::Vector2f(1.5f * span, 1.5f * span));
+        Vertex *v2 = new Vertex(center + Eigen::Vector2f(-1.5f * span, 1.5f * span));
+        Vertex *v3 = new Vertex(center + Eigen::Vector2f(-1.5f * span, -1.5f * span));
+        Vertex *v4 = new Vertex(center + Eigen::Vector2f(1.5f * span, -1.5f * span));
         vertices.push_back(v1);
         vertices.push_back(v2);
         vertices.push_back(v3);
         vertices.push_back(v4);
         int N = vertices.size();
-        segments.push_back(Edge(N-4, N-3));
-        segments.push_back(Edge(N-3, N-2));
-        segments.push_back(Edge(N-2, N-1));
-        segments.push_back(Edge(N-1, N-4));
+        segments.push_back(Edge(*v1, *v2));
+        segments.back().is_helper = true;
+        segments.push_back(Edge(*v2, *v3));
+        segments.back().is_helper = true;
+        segments.push_back(Edge(*v3, *v4));
+        segments.back().is_helper = true;
+        segments.push_back(Edge(*v4, *v1));
+        segments.back().is_helper = true;
 
         DelaunayTriangulation();
 
@@ -300,21 +309,21 @@ namespace Rupperts {
                 first_bad_triangle = GetFirstBadTriangle(alpha);
 
                 if (first_bad_triangle != nullptr) {
-                    Vertex p;
-                    p.coordinates = CalculateCircle(*first_bad_triangle).center;
+                    Vertex *p = new Vertex();
+                    p->coordinates = CalculateCircle(*first_bad_triangle).center;
                     bool encroached = false;
                     for (int i = 0; i < segments.size(); ++i) {
                         Circle c;
-                        c.center = ( vertices[segments[i].orig].coordinates + vertices[segments[i].dest].coordinates ) / 2.0f;
-                        c.radius = ( vertices[segments[i].orig].coordinates - vertices[segments[i].dest].coordinates ).norm() / 2.0f;
-                        if (inCircle(c,p)) { // Circumcenter of bad triangle encroaches a segment
+                        c.center = ( segments[i].orig->coordinates + segments[i].dest->coordinates ) / 2.0f;
+                        c.radius = ( segments[i].orig->coordinates - segments[i].dest->coordinates ).norm() / 2.0f;
+                        if (inCircle(c, *p)) { // Circumcenter of bad triangle encroaches a segment
                             SplitSeg(i);
                             encroached = true;
                         }
                     }
 
                     if (!encroached) {
-                        SplitTri(*first_bad_triangle, p);
+                        SplitTri(*first_bad_triangle, *p);
                     }
                 }
             }
@@ -327,6 +336,69 @@ namespace Rupperts {
                 std::cout << "WARNING: Did not converge in time!" << std::endl;
                 return;
             }
+        }
+
+        // Remove outside triangles with a "triangle eating virus"
+
+        // Remove helper segments
+        for (int i = 0; i < segments.size(); ++i) {
+            if (segments[i].is_helper) {
+                segments.erase(segments.begin() + i);
+                --i;
+            }
+        }
+
+        // Find first triangle containing a helper vertex.
+        int start_idx = -1;
+        for (int i = 0; i < triangles.size(); ++i) {
+            for (int k = 0; k < 3; ++k) {
+                if (triangles[i]->v[k]->is_helper) {
+                    start_idx = i;
+                    break;
+                }
+                if (start_idx >= 0) break;
+            }
+        }
+
+        MarkTriangleDeletion(*triangles[start_idx], nullptr);
+
+        for (int i = 0; i < triangles.size(); ++i) {
+            if (triangles[i]->marked_for_deletion) {
+                delete triangles[i];
+                triangles.erase(triangles.begin() + i);
+                --i;
+            }
+        }
+
+        // Remove orphaned points
+        for (int i = 0; i < triangles.size(); ++i) {
+            for (int k = 0; k < 3; ++k) {
+                triangles[i]->v[k]->orphaned = false;
+            }
+        }
+
+        for (int i = 0; i < vertices.size(); ++i) {
+            if (vertices[i]->orphaned) {
+                delete vertices[i];
+                vertices.erase(vertices.begin() + i);
+                --i;
+            }
+        }
+    }
+
+    void Delaunay2D::MarkTriangleDeletion(Triangle &t, Triangle *prev_t) {
+        t.marked_for_deletion = true;
+        for (int k = 0; k < 3; ++k) {
+            if (t.t[k] == nullptr || t.t[k] == prev_t ) continue;
+            bool flag = false;
+            for (int m = 0; m < segments.size(); ++m) {
+                // If edge is a segment
+                if ((t.v[(k+1)%3] == segments[m].orig && t.v[(k+2)%3] == segments[m].dest) || (t.v[(k+1)%3] == segments[m].dest && t.v[(k+2)%3] == segments[m].orig)) {
+                    flag = true;
+                }
+            }
+            if (flag) continue;
+            if (!t.t[k]->marked_for_deletion) MarkTriangleDeletion(*(t.t[k]), &t);
         }
     }  
 }

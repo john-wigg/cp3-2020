@@ -69,8 +69,8 @@ for s in segments:
 lc_poly = LineCollection(segs_poly, linewidths=1, color='red')
 ax.add_collection(lc_poly)
 
-ax.set_xlim(-5, 5)
-ax.set_ylim(-6.5, 5)
+ax.set_xlim(-15, 15)
+ax.set_ylim(-15, 15)
 ax.set_aspect('equal')
 
 for vertex in vertices:
