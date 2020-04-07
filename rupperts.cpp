@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <fstream>
 #include <string>
+#include <iostream>
 
 namespace Rupperts {
     int positive_modulo(int i, int n) {
@@ -53,8 +54,8 @@ namespace Rupperts {
         // First find alle the triangles that are no longer valid due to the insrtion
         for (int k = 0; k < triangles.size(); ++k) {
             // Add triangles that are no longer valid to bad triangles
-            if (inCircle(triangles[k].get().c, vertices[i])) {
-                triangles[k].get().is_bad = true;
+            if (inCircle(triangles[k]->c, vertices[i])) {
+                triangles[k]->is_bad = true;
                 last_bad_index = k;
                 num_bad_triangles++;
             }
@@ -65,7 +66,7 @@ namespace Rupperts {
         std::vector<Triangle *> boundary_triangles;
 
         // start with first triangle in bad triangles
-        Triangle *T = &triangles[last_bad_index].get();
+        Triangle *T = triangles[last_bad_index];
         int edge = 0;
         //while (i == 5){};
         while (true) {
@@ -94,15 +95,15 @@ namespace Rupperts {
         }
         // Remove bad triangles
         for (int k = 0; k < triangles.size(); ++k) {
-            if (triangles[k].get().is_bad) {
-                delete &(triangles[k].get());
+            if (triangles[k]->is_bad) {
+                delete triangles[k];
                 triangles.erase(triangles.begin() + k);
                 --k;
             }
         }
 
         // Re-triangulate the hole
-        std::vector<std::reference_wrapper<Triangle>> new_triangles;
+        std::vector<Triangle *> new_triangles;
         for (int k = 0; k < boundary.size(); ++k) {
             Triangle *new_T = new Triangle();
             new_T->v = { i, boundary[k].orig, boundary[k].dest };
@@ -117,13 +118,13 @@ namespace Rupperts {
                     }
                 }
             }
-            new_triangles.push_back(*new_T);
+            new_triangles.push_back(new_T);
         }
 
         // Link new triangles to each other and add to list
         for (int k = 0; k < new_triangles.size(); ++k) {
-            new_triangles[k].get().t[1] = &new_triangles[positive_modulo((k + 1), new_triangles.size())].get();
-            new_triangles[k].get().t[2] = &new_triangles[positive_modulo((k - 1), new_triangles.size())].get();
+            new_triangles[k]->t[1] = new_triangles[positive_modulo((k + 1), new_triangles.size())];
+            new_triangles[k]->t[2] = new_triangles[positive_modulo((k - 1), new_triangles.size())];
             triangles.push_back(new_triangles[k]);
         }
     }
@@ -155,7 +156,7 @@ namespace Rupperts {
         Triangle *t = new Triangle();
         t->v = { N - 3, N - 2, N - 1 };
         t->c = CalculateCircle(*t);
-        triangles.push_back(*t);
+        triangles.push_back(t);
 
         for (int i = 0; i < N-3; ++i) {
             DelaunayAddPoint(i);
@@ -188,7 +189,7 @@ namespace Rupperts {
         outfile << std::endl;
 
         for (int i = 0; i < triangles.size(); ++i) {
-            outfile << triangles[i].get().v[0] << " " << triangles[i].get().v[1] << " " << triangles[i].get().v[2] << std::endl;
+            outfile << triangles[i]->v[0] << " " << triangles[i]->v[1] << " " << triangles[i]->v[2] << std::endl;
         }
         outfile << std::endl;
 
@@ -200,7 +201,7 @@ namespace Rupperts {
 
     Delaunay2D::~Delaunay2D() {
         for (int i = 0; i < triangles.size(); ++i) {
-            delete &triangles[i].get();
+            delete triangles[i];
         }
     }
 
@@ -234,6 +235,16 @@ namespace Rupperts {
         return -1;
     }
 
+    Triangle *Delaunay2D::GetFirstBadTriangle(float alpha) {
+        for (int i = 0; i < triangles.size(); ++i) {
+            if (IsTriangleLowQuality(*triangles[i], alpha))
+            {
+                return triangles[i];
+            }
+        }
+        return nullptr;
+    }
+
     bool Delaunay2D::IsTriangleLowQuality(const Triangle &t, float alpha) {
         if (vertices[t.v[1]].is_helper) return false;
         if (vertices[t.v[0]].is_helper) return false;
@@ -244,7 +255,9 @@ namespace Rupperts {
             float dot = a.x() * b.x() + a.y() + b.y();
             float det = a.x() * b.y() - a.y() * b.x();
             float angle = fabs(atan2(det, dot)) * 180.0 / 3.1415926535;
-            if (angle < alpha) return true;
+            if (angle < alpha) {
+                return true;
+            }
         }
         return false;
     }
@@ -276,29 +289,15 @@ namespace Rupperts {
 
         int first_encroached = GetFirstEncroached();
 
-        Triangle *first_bad_triangle = nullptr;
+        Triangle *first_bad_triangle = GetFirstBadTriangle(alpha);
 
-        // Get first bad triangle
-        for (int i = 0; i < triangles.size(); ++i) {
-            if (IsTriangleLowQuality(triangles[i].get(), alpha))
-            {
-                first_bad_triangle = &triangles[i].get();
-                break;
-            }
-        }
+        int it = 0;
         while (first_encroached >= 0 || first_bad_triangle != nullptr) {
             if (first_encroached >= 0) {
                 SplitSeg(first_encroached);
             } else {
                 // Get first bad triangle
-                first_bad_triangle = nullptr;
-                for (int i = 0; i < triangles.size(); ++i) {
-                    if (IsTriangleLowQuality(triangles[i].get(), alpha))
-                    {
-                        first_bad_triangle = &triangles[i].get();
-                        break;
-                    }
-                }
+                first_bad_triangle = GetFirstBadTriangle(alpha);
 
                 if (first_bad_triangle != nullptr) {
                     Vertex p;
@@ -322,6 +321,12 @@ namespace Rupperts {
 
             // Get encroached segment
             first_encroached = GetFirstEncroached();
+
+            ++it;
+            if (it > 1000) {
+                std::cout << "WARNING: Did not converge in time!" << std::endl;
+                return;
+            }
         }
     }  
 }

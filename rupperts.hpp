@@ -48,6 +48,7 @@ namespace Rupperts {
         void SplitSeg(int s);
         void SplitTri(Triangle &t, Vertex p);
         int GetFirstEncroached();
+        Triangle *GetFirstBadTriangle(float alpha);
         bool IsTriangleLowQuality(const Triangle &t, float alpha);
         Circle CalculateCircle(const Triangle &t);
         bool inCircle(const Circle &c, const Vertex &v);
@@ -55,7 +56,7 @@ namespace Rupperts {
     public:
         ~Delaunay2D();
         std::vector<Vertex> vertices;
-        std::vector<std::reference_wrapper<Triangle>> triangles;
+        std::vector<Triangle *> triangles;
         std::vector<Edge> segments;
         void DelaunayTriangulation();
         void ToFile(std::string oname);

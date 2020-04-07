@@ -62,6 +62,7 @@ for i in range(len(vertices)):
 
 segs_poly = []
 for s in segments:
+    print(s)
     line = (vertices[s[0]], vertices[s[1]])
     segs_poly.append(line)
     
